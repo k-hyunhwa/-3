@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>폐교 탐험: 유령의 방과 삼각비 👻</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'DungGeunMo', 'Courier New', monospace;
+        }
+
+        body {
+            background-color: #050505;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background-color: #111;
+            border: 4px solid #3a3a3a;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 메타버스 HUD (상태바) */
+        .hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #555;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .room-badge {
+            background: #8e44ad;
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 15px;
+            border: 1px solid #a29bfe;
+        }
+
+        .stat-val { color: #f1c40f; font-weight: bold; }
+        .stat-correct { color: #2ecc71; font-weight: bold; }
+        .stat-wrong { color: #e74c3c; font-weight: bold; }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid #777;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #ccc;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* 퀴즈 모달 */
+        .quiz-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 480px;
+            background: rgba(20, 20, 20, 0.95);
+            border: 3px solid #e74c3c;
+            box-shadow: 0 0 30px rgba(231, 76, 60, 0.8);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+        }
+
+        .quiz-modal h2 {
+            font-size: 20px;
+            color: #e74c3c;
+            margin-bottom: 15px;
+            text-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
+        }
+
+        .quiz-qbox {
+            background: #2b2b2b;
+            border: 1px solid #555;
+            padding: 18px;
+            border-radius: 8px;
+            font-size: 22px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 20px;
+        }
+
+        .quiz-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn-opt {
+            background: #333;
+            border: 2px solid #555;
+            color: #fff;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-opt:hover {
+            background: #444;
+            border-color: #f1c40f;
+            color: #f1c40f;
+        }
+
+        .btn-opt:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .quiz-feedback {
+            height: 26px;
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .quiz-feedback.correct { color: #2ecc71; }
+        .quiz-feedback.wrong { color: #e74c3c; }
+
+        .btn-next {
+            width: 100%;
+            background: #e74c3c;
+            border: none;
+            color: white;
+            padding: 11px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            display: none;
+        }
+
+        .btn-next:hover {
+            background: #c0392b;
+        }
+
+        /* 😱 3초 귀신 점프스케어 오버레이 */
+        .scare-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(120, 0, 0, 0.85);
+            display: none;
+            z-index: 300;
+            animation: slightShake 0.15s infinite alternate;
+            pointer-events: all;
+            overflow: hidden;
+        }
+
+        /* 화면 떨림 완화 (조금만 흔들림) */
+        @keyframes slightShake {
+            0% { transform: translate(1px, 1px); }
+            50% { transform: translate(-2px, 1px); }
+            100% { transform: translate(1px, -2px); }
+        }
+
+        /* 날아다니는 유령 객체 스타일 */
+        .flying-ghost {
+            position: absolute;
+            font-size: 60px;
+            filter: drop-shadow(0 0 10px #000);
+            transition: all 0.3s ease-out; /* 이동 시 부드럽게 위치 변경 */
+            pointer-events: none;
+        }
+
+        /* 오버레이 텍스트 및 타이머 */
+        .scare-info-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 310;
+            pointer-events: none;
+        }
+
+        .scare-text {
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #000;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .scare-timer {
+            font-size: 45px;
+            color: #f1c40f;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 5px 25px;
+            border-radius: 12px;
+            border: 2px solid #f1c40f;
+            box-shadow: 0 0 15px rgba(241, 196, 15, 0.5);
+        }
+
+        /* 최종 통계 Overlay */
+        .result-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            display: none;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .result-overlay h1 {
+            font-size: 32px;
+            color: #2ecc71;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
+        }
+
+        .result-card {
+            background: #1c1c1c;
+            border: 2px solid #444;
+            padding: 25px;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 440px;
+            text-align: left;
+            line-height: 1.8;
+            font-size: 16px;
+            margin-bottom: 25px;
+        }
+
+        .btn-restart {
+            background: #8e44ad;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .btn-restart:hover { background: #9b59b6; }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <!-- HUD 정보창 -->
+        <div class="hud">
+            <div>
+                <span id="roomBadge" class="room-badge">🏫 101호 교실</span>
+            </div>
+            <div>⏱️ <span id="timerText" class="stat-val">0초</span></div>
+            <div>점수: <span id="scoreText" class="stat-val">0</span></div>
+            <div>정답: <span id="correctText" class="stat-correct">0</span> | 오답: <span id="wrongText" class="stat-wrong">0</span></div>
+        </div>
+
+        <canvas id="mapCanvas" width="800" height="600"></canvas>
+
+        <div class="controls-hint">
+            ⌨️ 방향키(↑ ↓ ← →) 또는 WASD로 이동하여 <b>출현한 유령</b>에게 다가가세요!
+        </div>
+
+        <!-- 퀴즈 모달 -->
+        <div id="quizModal" class="quiz-modal">
+            <h2 id="quizTitle">👻 유령의 삼각비 퀴즈</h2>
+            <div id="quizQbox" class="quiz-qbox">sin(30°) = ?</div>
+            <div id="quizOptions" class="quiz-options"></div>
+            <div id="quizFeedback" class="quiz-feedback"></div>
+            <button id="btnNext" class="btn-next" onclick="closeQuizModal()">다음 장소로 이동하기 (Space) ➔</button>
+        </div>
+
+        <!-- 😱 3초 자유 이동 귀신 방해 오버레이 -->
+        <div id="scareOverlay" class="scare-overlay">
+            <div id="ghostContainer"></div>
+            <div class="scare-info-box">
+                <div class="scare-text">😱 귀신들이 난동을 부려 봉인이 차단되었습니다!</div>
+                <div class="scare-timer" id="scareCountdown">3</div>
+            </div>
+        </div>
+
+        <!-- 최종 탈출 결과 -->
+        <div id="resultOverlay" class="result-overlay">
+            <h1>폐교 성불 탈출 성공! 🎉</h1>
+            <div class="result-card" id="resultStats"></div>
+            <button class="btn-restart" onclick="restartGame()">다시 탐험하기 🔄</button>
+        </div>
+    </div>
+
+    <script>
+        // 장소 테마
+        const roomThemes = [
+            { name: "🏫 101호 교실", ghostName: "소쩍소쩍 처녀귀신", ghostEmoji: "👻", bgFloor: "#1a120b", bgBorder: "#3e2723" },
+            { name: "🧪 비밀 과학실", ghostName: "피투성이 인체모형", ghostEmoji: "💀", bgFloor: "#0b1a18", bgBorder: "#004d40" },
+            { name: "🎹 잔혹 음악실", ghostName: "피아노 악령", ghostEmoji: "🎹", bgFloor: "#180b1a", bgBorder: "#4a148c" },
+            { name: "📚 저주받은 도서관", ghostName: "공포의 가위손 귀신", ghostEmoji: "✂️", bgFloor: "#1c180a", bgBorder: "#f57f17" },
+            { name: "💉 버려진 양호실", ghostName: "원혼이 서린 핏빛 주사기", ghostEmoji: "💉", bgFloor: "#1f0a0a", bgBorder: "#b71c1c" },
+            { name: "⛓️ 지하 과목실", ghostName: "지옥의 마왕 유령", ghostEmoji: "👹", bgFloor: "#080808", bgBorder: "#212121" }
+        ];
+
+        // 방해 유령 이모지 종류
+        const scareGhostList = ["👻", "💀", "👹", "👿", "👺", "🧟‍♂️", "✂️", "💉", "🩸", "👁️"];
+
+        // 문제 데이터
+        const stage1Data = [
+            { q: "sin(30°)", a: "1/2", wrongOpts: ["0", "√2/2", "√3/2"] },
+            { q: "sin(45°)", a: "√2/2", wrongOpts: ["1/2", "√3/2", "1"] },
+            { q: "sin(60°)", a: "√3/2", wrongOpts: ["1/2", "√2/2", "1"] },
+            { q: "sin(90°)", a: "1", wrongOpts: ["0", "1/2", "√3/2"] },
+            { q: "cos(0°)", a: "1", wrongOpts: ["0", "1/2", "√3/2"] },
+            { q: "cos(30°)", a: "√3/2", wrongOpts: ["1/2", "√2/2", "1"] },
+            { q: "cos(60°)", a: "1/2", wrongOpts: ["√3/2", "√2/2", "0"] },
+            { q: "cos(90°)", a: "0", wrongOpts: ["1", "1/2", "√2/2"] },
+            { q: "tan(30°)", a: "√3/3", wrongOpts: ["1", "√3", "0"] },
+            { q: "tan(60°)", a: "√3", wrongOpts: ["1", "√3/3", "0"] },
+            { q: "sin(x) = 1/2 일 때, x", a: "30°", wrongOpts: ["0°", "45°", "60°"] },
+            { q: "sin(x) = √2/2 일 때, x", a: "45°", wrongOpts: ["30°", "60°", "90°"] },
+            { q: "sin(x) = √3/2 일 때, x", a: "60°", wrongOpts: ["30°", "45°", "90°"] },
+            { q: "sin(x) = 1 일 때, x", a: "90°", wrongOpts: ["0°", "45°", "60°"] },
+            { q: "cos(x) = √3/2 일 때, x", a: "30°", wrongOpts: ["0°", "45°", "60°"] },
+            { q: "cos(x) = √2/2 일 때, x", a: "45°", wrongOpts: ["30°", "60°", "90°"] },
+            { q: "cos(x) = 1/2 일 때, x", a: "60°", wrongOpts: ["30°", "45°", "90°"] },
+            { q: "tan(x) = √3/3 일 때, x", a: "30°", wrongOpts: ["0°", "45°", "60°"] },
+            { q: "tan(x) = 1 일 때, x", a: "45°", wrongOpts: ["30°", "60°", "90°"] },
+            { q: "tan(x) = √3 일 때, x", a: "60°", wrongOpts: ["30°", "45°", "90°"] }
+        ];
+
+        const stage2Data = [
+            { q: "sin(30°) + cos(60°)", a: "1", wrongOpts: ["1/2", "√3/2", "2"] },
+            { q: "sin(90°) + tan(45°)", a: "2", wrongOpts: ["1", "0", "√2"] },
+            { q: "sin(45°) × cos(45°)", a: "1/2", wrongOpts: ["1", "√2/2", "1/4"] },
+            { q: "sin(60°) × tan(60°)", a: "3/2", wrongOpts: ["1", "√3/2", "3"] },
+            { q: "sin(30°) - cos(60°)", a: "0", wrongOpts: ["1", "1/2", "-1/2"] },
+            { q: "tan(45°) - cos(0°)", a: "0", wrongOpts: ["1", "-1", "1/2"] },
+            { q: "cos(30°) - sin(30°)", a: "(√3-1)/2", wrongOpts: ["1/2", "√3/2", "0"] },
+            { q: "tan(30°) × tan(60°)", a: "1", wrongOpts: ["3", "√3/3", "1/3"] },
+            { q: "sin²(30°) + cos²(30°)", a: "1", wrongOpts: ["1/2", "2", "3/4"] },
+            { q: "sin²(45°) + cos²(45°)", a: "1", wrongOpts: ["1/2", "√2", "2"] }
+        ];
+
+        // 게임 상태
+        const canvas = document.getElementById("mapCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let currentStage = 1;
+        let questionQueue = [];
+        let activeQuiz = null;
+
+        let score = 0;
+        let correctCount = 0;
+        let wrongCount = 0;
+
+        let timerInterval = null;
+        let ghostMoveInterval = null; // 귀신 무작위 이동 인터벌
+        let stage1Time = 0;
+        let stage2Time = 0;
+        let currentStageTime = 0;
+
+        let isQuizOpen = false;
+        let canAnswer = true;
+        let isScareActive = false;
+        let currentThemeIndex = 0;
+
+        const player = { x: 400, y: 500, size: 20, speed: 4.5, color: '#3498db' };
+        const ghostTarget = { x: 400, y: 180, radius: 35, floatOffset: 0 };
+        const keys = {};
+
+        window.addEventListener("keydown", e => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === " " && isQuizOpen && !canAnswer && !isScareActive) {
+                closeQuizModal();
+            }
+        });
+        window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+        function initGame() {
+            score = 0;
+            correctCount = 0;
+            wrongCount = 0;
+            stage1Time = 0;
+            stage2Time = 0;
+            
+            document.getElementById("resultOverlay").style.display = "none";
+            document.getElementById("scareOverlay").style.display = "none";
+            initStage(1);
+            requestAnimationFrame(gameLoop);
+        }
+
+        function initStage(stageNum) {
+            currentStage = stageNum;
+            currentStageTime = 0;
+            clearInterval(timerInterval);
+
+            if (stageNum === 1) {
+                questionQueue = [...stage1Data].sort(() => Math.random() - 0.5);
+            } else {
+                questionQueue = [...stage2Data].sort(() => Math.random() - 0.5);
+            }
+
+            timerInterval = setInterval(() => {
+                currentStageTime++;
+                document.getElementById("timerText").textContent = `${currentStageTime}초`;
+            }, 1000);
+
+            randomizeGhostLocation();
+            updateHUD();
+        }
+
+        function randomizeGhostLocation() {
+            currentThemeIndex = Math.floor(Math.random() * roomThemes.length);
+            ghostTarget.x = Math.floor(Math.random() * 500) + 150;
+            ghostTarget.y = Math.floor(Math.random() * 250) + 120;
+
+            player.x = 400;
+            player.y = 520;
+        }
+
+        function updateHUD() {
+            const theme = roomThemes[currentThemeIndex];
+            const badge = document.getElementById("roomBadge");
+            badge.textContent = `${theme.name} [단계 ${currentStage}]`;
+            badge.style.background = theme.bgBorder;
+
+            document.getElementById("scoreText").textContent = score;
+            document.getElementById("correctText").textContent = correctCount;
+            document.getElementById("wrongText").textContent = wrongCount;
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            if (isQuizOpen || isScareActive) return;
+
+            if (keys['arrowup'] || keys['w']) player.y -= player.speed;
+            if (keys['arrowdown'] || keys['s']) player.y += player.speed;
+            if (keys['arrowleft'] || keys['a']) player.x -= player.speed;
+            if (keys['arrowright'] || keys['d']) player.x += player.speed;
+
+            player.x = Math.max(30, Math.min(canvas.width - 30, player.x));
+            player.y = Math.max(30, Math.min(canvas.height - 30, player.y));
+
+            const dist = Math.hypot(player.x - ghostTarget.x, player.y - ghostTarget.y);
+            if (dist < ghostTarget.radius + player.size) {
+                openQuizModal();
+            }
+
+            ghostTarget.floatOffset += 0.06;
+        }
+
+        function draw() {
+            const theme = roomThemes[currentThemeIndex];
+
+            ctx.fillStyle = theme.bgFloor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = theme.bgBorder;
+            ctx.lineWidth = 3;
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            ctx.strokeStyle = "#e74c3c";
+            ctx.lineWidth = 6;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+            const floatY = ghostTarget.y + Math.sin(ghostTarget.floatOffset) * 8;
+
+            ctx.fillStyle = "rgba(231, 76, 60, 0.25)";
+            ctx.beginPath();
+            ctx.arc(ghostTarget.x, floatY, ghostTarget.radius + 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.font = "38px DungGeunMo";
+            ctx.textAlign = "center";
+            ctx.fillText(theme.ghostEmoji, ghostTarget.x, floatY + 12);
+
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 13px DungGeunMo";
+            ctx.fillText(`[${theme.ghostName}]`, ghostTarget.x, floatY - 35);
+            ctx.fillStyle = "#f1c40f";
+            ctx.fillText(`남은 유령: ${questionQueue.length}마리`, ghostTarget.x, floatY + 50);
+
+            const flash = ctx.createRadialGradient(player.x, player.y, 10, player.x, player.y, 180);
+            flash.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+            flash.addColorStop(1, 'rgba(0, 0, 0, 0.88)');
+            ctx.fillStyle = flash;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = "#f1c40f";
+            ctx.font = "12px DungGeunMo";
+            ctx.fillText("탐험가", player.x, player.y - 25);
+        }
+
+        // 퀴즈 열기
+        function openQuizModal() {
+            if (isQuizOpen || questionQueue.length === 0 || isScareActive) return;
+
+            isQuizOpen = true;
+            canAnswer = true;
+            activeQuiz = questionQueue[0];
+            const theme = roomThemes[currentThemeIndex];
+
+            document.getElementById("quizModal").style.display = "block";
+            document.getElementById("btnNext").style.display = "none";
+            document.getElementById("quizFeedback").textContent = "";
+
+            document.getElementById("quizTitle").textContent = `${theme.ghostEmoji} ${theme.ghostName}의 수수께끼`;
+
+            document.getElementById("quizQbox").textContent = 
+                activeQuiz.q.includes("일 때") ? activeQuiz.q : `${activeQuiz.q} = ?`;
+
+            const options = [activeQuiz.a, ...activeQuiz.wrongOpts].sort(() => Math.random() - 0.5);
+            
+            const optContainer = document.getElementById("quizOptions");
+            optContainer.innerHTML = "";
+
+            options.forEach(opt => {
+                const btn = document.createElement("button");
+                btn.className = "btn-opt";
+                btn.textContent = opt;
+                btn.onclick = () => checkAnswer(opt, btn);
+                optContainer.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selected, selectedBtn) {
+            if (!canAnswer || isScareActive) return;
+            canAnswer = false;
+
+            const feedbackEl = document.getElementById("quizFeedback");
+            const allBtns = document.querySelectorAll(".btn-opt");
+            const currentQ = questionQueue.shift();
+
+            if (selected === activeQuiz.a) {
+                // 정답인 경우
+                score += 20;
+                correctCount++;
+                feedbackEl.textContent = "⭕ 유령이 성불했습니다! (+20점)";
+                feedbackEl.className = "quiz-feedback correct";
+                selectedBtn.style.background = "#2ecc71";
+                selectedBtn.style.color = "#fff";
+
+                updateHUD();
+                showNextBtn();
+            } else {
+                // 오답인 경우 -> 😱 3초 귀신 난동 연출
+                score -= 10;
+                wrongCount++;
+                questionQueue.push(currentQ); // 후반부 재출제
+
+                feedbackEl.textContent = "❌ 유령이 비명을 지릅니다! (-10점)";
+                feedbackEl.className = "quiz-feedback wrong";
+                selectedBtn.style.background = "#e74c3c";
+                selectedBtn.style.color = "#fff";
+
+                allBtns.forEach(btn => {
+                    if (btn.textContent === activeQuiz.a) {
+                        btn.style.borderColor = "#2ecc71";
+                        btn.style.color = "#2ecc71";
+                    }
+                });
+
+                updateHUD();
+
+                // 3초 자유 이동 귀신 방해 연출 발동
+                triggerFlyingGhostScare();
+            }
+        }
+
+        // 😱 3초 동안 화면을 자유롭게 날아다니는 귀신 난동 연출
+        function triggerFlyingGhostScare() {
+            isScareActive = true;
+
+            const scareOverlay = document.getElementById("scareOverlay");
+            const ghostContainer = document.getElementById("ghostContainer");
+            const scareTimer = document.getElementById("scareCountdown");
+
+            ghostContainer.innerHTML = "";
+            scareOverlay.style.display = "block";
+
+            // 6마리의 귀신 엘리먼트 생성
+            const ghostElements = [];
+            for (let i = 0; i < 6; i++) {
+                const g = document.createElement("div");
+                g.className = "flying-ghost";
+                g.textContent = scareGhostList[Math.floor(Math.random() * scareGhostList.length)];
+                
+                // 초기 무작위 위치 설정
+                const initX = Math.floor(Math.random() * 700);
+                const initY = Math.floor(Math.random() * 500);
+                g.style.left = `${initX}px`;
+                g.style.top = `${initY}px`;
+
+                ghostContainer.appendChild(g);
+                ghostElements.push(g);
+            }
+
+            // 0.25초마다 귀신들이 화면을 자유롭게 왔다갔다 이동
+            ghostMoveInterval = setInterval(() => {
+                ghostElements.forEach(g => {
+                    const newX = Math.floor(Math.random() * 720);
+                    const newY = Math.floor(Math.random() * 520);
+                    g.style.left = `${newX}px`;
+                    g.style.top = `${newY}px`;
+                });
+            }, 250);
+
+            // 3초 카운트다운
+            let timeLeft = 3;
+            scareTimer.textContent = timeLeft;
+
+            const countInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    scareTimer.textContent = timeLeft;
+                } else {
+                    clearInterval(countInterval);
+                    clearInterval(ghostMoveInterval);
+                    
+                    scareOverlay.style.display = "none";
+                    ghostContainer.innerHTML = "";
+                    isScareActive = false;
+                    
+                    showNextBtn();
+                }
+            }, 1000);
+        }
+
+        function showNextBtn() {
+            const btnNext = document.getElementById("btnNext");
+            if (questionQueue.length > 0) {
+                btnNext.textContent = "다음 방으로 이동하기 (Space) ➔";
+            } else if (currentStage === 1) {
+                btnNext.textContent = "2단계 지하 구역 진입 (Space) ➔";
+            } else {
+                btnNext.textContent = "폐교 성불 완료하기 (Space) ➔";
+            }
+            btnNext.style.display = "block";
+        }
+
+        function closeQuizModal() {
+            document.getElementById("quizModal").style.display = "none";
+            isQuizOpen = false;
+
+            if (questionQueue.length === 0) {
+                clearInterval(timerInterval);
+                if (currentStage === 1) {
+                    stage1Time = currentStageTime;
+                    alert(`🎉 1단계 성불 완료! (소요시간: ${stage1Time}초)\n2단계 지하 연산 구역으로 이동합니다.`);
+                    initStage(2);
+                } else {
+                    stage2Time = currentStageTime;
+                    showResultOverlay();
+                }
+            } else {
+                randomizeGhostLocation();
+                updateHUD();
+            }
+        }
+
+        function showResultOverlay() {
+            document.getElementById("resultOverlay").style.display = "flex";
+            const totalTime = stage1Time + stage2Time;
+
+            document.getElementById("resultStats").innerHTML = `
+                👻 <b>폐교 탐험 종합 보고서</b><br><br>
+                🏆 <b>최종 점수:</b> ${score}점<br>
+                ✅ <b>맞춘 횟수:</b> ${correctCount}회 (+${correctCount * 20}점)<br>
+                ❌ <b>틀린 횟수:</b> ${wrongCount}회 (-${wrongCount * 10}점)<br>
+                -----------------------------------<br>
+                ⏱️ <b>1단계 소요 시간:</b> ${stage1Time}초<br>
+                ⏱️ <b>2단계 소요 시간:</b> ${stage2Time}초<br>
+                ⏱️ <b>총 탈출 시간:</b> ${totalTime}초
+            `;
+        }
+
+        function restartGame() {
+            initGame();
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
